@@ -1,1 +1,1 @@
-web: uvicorn speccheck.web:app --host 0.0.0.0 --port $PORT
+web: python -m uvicorn speccheck.web:app --host 0.0.0.0 --port $PORT

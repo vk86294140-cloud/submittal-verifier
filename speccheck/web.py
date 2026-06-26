@@ -6,11 +6,14 @@ review. Past reviews are listed on the dashboard; a resubmittal can be linked
 to the round it supersedes so only what changed is highlighted.
 
 Run locally / on a LAN:
-    uvicorn speccheck.web:app --host 0.0.0.0 --port 8000
+    python -m uvicorn speccheck.web:app --host 0.0.0.0 --port 8000
 
-Set ``SPECCHECK_PASSWORD`` (and optionally ``SPECCHECK_USER``, default
-``admin``) to require HTTP Basic auth — do this for any deployment reachable
-beyond a trusted network. ``SPECCHECK_DB`` overrides the database path.
+Security-relevant environment variables:
+    SPECCHECK_PASSWORD     require HTTP Basic auth (set for any non-trusted net)
+    SPECCHECK_USER         auth username (default "admin")
+    SPECCHECK_DB           SQLite path (default "speccheck.db")
+    SPECCHECK_MAX_UPLOAD_MB per-file upload cap in MB (default 10)
+    SPECCHECK_RATE_LIMIT   requests/min per client IP, 0 disables (default 120)
 """
 
 from __future__ import annotations
@@ -18,9 +21,11 @@ from __future__ import annotations
 import html
 import os
 import secrets
+import time
+from collections import defaultdict, deque
 
 try:
-    from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile, status
+    from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, status
     from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
     from fastapi.security import HTTPBasic, HTTPBasicCredentials
 except ImportError as exc:  # pragma: no cover - optional dependency
@@ -36,9 +41,59 @@ from .resubmittal import render as render_diff
 from .store import get_review, list_reviews, save_review
 
 DB_PATH = os.environ.get("SPECCHECK_DB", "speccheck.db")
+MAX_UPLOAD_BYTES = int(os.environ.get("SPECCHECK_MAX_UPLOAD_MB", "10")) * 1024 * 1024
+RATE_LIMIT_PER_MIN = int(os.environ.get("SPECCHECK_RATE_LIMIT", "120"))
+ALLOWED_EXT = (".txt", ".pdf")
 
 app = FastAPI(title="speccheck", version="0.2.0")
 _security = HTTPBasic(auto_error=False)
+
+# Per-client request timestamps for the in-memory rate limiter. This is
+# per-process: a single instance is protected; running multiple replicas
+# behind a load balancer needs a shared store (Redis) instead.
+_request_log: dict[str, deque] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    """Throttle abusive clients and attach hardening headers to every response."""
+    if RATE_LIMIT_PER_MIN > 0 and request.url.path != "/healthz":
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        hits = _request_log[client_ip]
+        while hits and now - hits[0] > 60:
+            hits.popleft()
+        if len(hits) >= RATE_LIMIT_PER_MIN:
+            return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
+        hits.append(now)
+
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "script-src 'none'; base-uri 'none'; form-action 'self'"
+    )
+    return response
+
+
+async def _read_upload(file: UploadFile) -> tuple[str, bytes]:
+    """Validate an uploaded file's type and size before it is parsed.
+
+    Only ``.txt`` and ``.pdf`` are accepted, and a per-file byte cap bounds
+    memory use and blocks decompression/parser abuse from oversized PDFs.
+    """
+    name = file.filename or ""
+    if not name.lower().endswith(ALLOWED_EXT):
+        raise HTTPException(status_code=400,
+                            detail="Only .txt or .pdf files are accepted")
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+    return name, data
 
 
 def require_auth(creds: HTTPBasicCredentials | None = Depends(_security)) -> None:
@@ -143,9 +198,10 @@ async def create_review(
     prior_id: str = Form(""),
     _: None = Depends(require_auth),
 ) -> RedirectResponse:
-    spec_text = load_text_bytes(spec.filename or "spec.txt", await spec.read())
-    sub_text = load_text_bytes(submittal.filename or "submittal.txt",
-                               await submittal.read())
+    spec_name, spec_data = await _read_upload(spec)
+    sub_name, sub_data = await _read_upload(submittal)
+    spec_text = load_text_bytes(spec_name, spec_data)
+    sub_text = load_text_bytes(sub_name, sub_data)
     report = verify(extract_requirements(spec_text), parse_submittal(sub_text))
 
     prior = int(prior_id) if prior_id.strip().isdigit() else None
@@ -209,9 +265,10 @@ def download_json(review_id: int, _: None = Depends(require_auth)) -> Response:
 async def verify_api(spec: UploadFile, submittal: UploadFile,
                      _: None = Depends(require_auth)) -> JSONResponse:
     """Stateless JSON endpoint for scripting/integrations."""
-    spec_text = load_text_bytes(spec.filename or "spec.txt", await spec.read())
-    sub_text = load_text_bytes(submittal.filename or "submittal.txt",
-                               await submittal.read())
+    spec_name, spec_data = await _read_upload(spec)
+    sub_name, sub_data = await _read_upload(submittal)
+    spec_text = load_text_bytes(spec_name, spec_data)
+    sub_text = load_text_bytes(sub_name, sub_data)
     report = verify(extract_requirements(spec_text), parse_submittal(sub_text))
     return JSONResponse(to_dict(report))
 

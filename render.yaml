@@ -1,5 +1,13 @@
 # One-click deploy to Render (https://render.com). In the Render dashboard:
-# New + > Blueprint > connect this repo. It reads this file.
+#   New + → Blueprint → connect this repo. It reads this file.
+#
+# This default uses Render's FREE plan: $0, but the service sleeps after
+# inactivity and its filesystem is EPHEMERAL — the review database resets on
+# each redeploy/restart. Fine for a demo or light use.
+#
+# For PERSISTENT data, switch `plan: free` to `plan: starter` (~$7/mo), then
+# uncomment the SPECCHECK_DB env var and the `disk:` block below so reviews
+# survive restarts.
 services:
   - type: web
     name: speccheck
@@ -7,14 +15,15 @@ services:
     plan: free
     healthCheckPath: /healthz
     envVars:
-      # Set a real value in the Render dashboard, do not commit secrets.
+      # REQUIRED. Set a strong value in the Render dashboard — never commit it.
       - key: SPECCHECK_PASSWORD
         sync: false
       - key: SPECCHECK_USER
         value: admin
-      - key: SPECCHECK_DB
-        value: /data/speccheck.db
-    disk:
-      name: speccheck-data
-      mountPath: /data
-      sizeGB: 1
+      # Uncomment with a paid plan + the disk below for a persistent database:
+      # - key: SPECCHECK_DB
+      #   value: /data/speccheck.db
+    # disk:
+    #   name: speccheck-data
+    #   mountPath: /data
+    #   sizeGB: 1

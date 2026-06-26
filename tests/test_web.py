@@ -88,3 +88,46 @@ def test_auth_required_when_password_set(tmp_path, monkeypatch):
     assert c.get("/", auth=("boss", "s3cret")).status_code == 200
     # /healthz stays open for load-balancer probes
     assert c.get("/healthz").status_code == 200
+
+
+def test_security_headers_present(client):
+    h = client.get("/").headers
+    assert h["x-content-type-options"] == "nosniff"
+    assert h["x-frame-options"] == "DENY"
+    assert "content-security-policy" in h
+
+
+def test_rejects_non_allowed_extension(client):
+    files = {
+        "spec": ("spec.exe", b"malware", "application/octet-stream"),
+        "submittal": ("sub.txt", b"data", "text/plain"),
+    }
+    assert client.post("/reviews", files=files).status_code == 400
+
+
+def test_rejects_oversized_upload(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPECCHECK_DB", str(tmp_path / "big.db"))
+    monkeypatch.setenv("SPECCHECK_MAX_UPLOAD_MB", "1")
+    monkeypatch.delenv("SPECCHECK_PASSWORD", raising=False)
+    import speccheck.web as web
+    importlib.reload(web)
+    c = TestClient(web.app)
+    big = b"x" * (2 * 1024 * 1024)  # 2 MB > 1 MB cap
+    files = {
+        "spec": ("spec.txt", big, "text/plain"),
+        "submittal": ("sub.txt", b"data", "text/plain"),
+    }
+    assert c.post("/reviews", files=files).status_code == 413
+
+
+def test_rate_limit_returns_429(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPECCHECK_DB", str(tmp_path / "rl.db"))
+    monkeypatch.setenv("SPECCHECK_RATE_LIMIT", "3")
+    monkeypatch.delenv("SPECCHECK_PASSWORD", raising=False)
+    import speccheck.web as web
+    importlib.reload(web)
+    c = TestClient(web.app)
+    codes = [c.get("/").status_code for _ in range(5)]
+    assert 429 in codes
+    # health checks bypass the limiter
+    assert c.get("/healthz").status_code == 200

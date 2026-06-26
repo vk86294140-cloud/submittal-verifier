@@ -17,4 +17,4 @@ RUN mkdir -p /data
 
 EXPOSE 8000
 # $PORT is honored by most PaaS hosts (Render, Railway); defaults to 8000.
-CMD ["sh", "-c", "uvicorn speccheck.web:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "python -m uvicorn speccheck.web:app --host 0.0.0.0 --port ${PORT:-8000}"]
