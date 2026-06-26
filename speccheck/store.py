@@ -64,3 +64,20 @@ def list_reviews(db_path: str | Path = DEFAULT_DB) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_review(review_id: int, db_path: str | Path = DEFAULT_DB) -> dict | None:
+    """Return a saved review (with its findings) or None if not found."""
+    conn = connect(db_path)
+    row = conn.execute(
+        "SELECT id, section, compliant, summary, findings, created_at"
+        " FROM reviews WHERE id = ?",
+        (review_id,),
+    ).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    data = dict(row)
+    data["summary"] = json.loads(data["summary"])
+    data["findings"] = json.loads(data["findings"])
+    return data

@@ -11,6 +11,8 @@ from .llm import enrich
 from .models import Finding, FindingStatus, Report, Requirement, SubmittalDoc
 from .parse_pdf import load_text
 from .report import to_dict, to_html, to_json, to_text
+from .resubmittal import ResubmittalDiff
+from .resubmittal import diff as diff_reviews
 from .verify import parse_submittal, verify
 
 __version__ = "0.1.0"
@@ -21,6 +23,8 @@ __all__ = [
     "enrich",
     "parse_submittal",
     "verify",
+    "diff_reviews",
+    "ResubmittalDiff",
     "load_text",
     "to_dict",
     "to_html",

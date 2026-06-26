@@ -73,6 +73,27 @@ python -m speccheck.cli verify spec.txt submittal.txt --format html -o review.ht
 # Add Claude enrichment and persist the result to speccheck.db
 python -m speccheck.cli verify spec.txt submittal.txt --llm --save
 python -m speccheck.cli history
+
+# Resubmittal: diff a new round against a prior saved review
+python -m speccheck.cli verify spec.txt resubmittal.txt --against 1
+```
+
+### Resubmittal tracking
+
+After a "revise and resubmit", save the first review (`--save`), then verify the
+next round with `--against <review_id>`. The diff sorts blocking findings into
+**cleared** (fixed), **recurring** (still open), and **new** (regressions):
+
+```
+Resubmittal diff — Section 09 68 13: OUTSTANDING ISSUES REMAIN
+  Cleared (1):
+    - pile height >= 0.27 inch
+  Recurring (3):
+    - Comply with ASTM E662
+    - Submit certified test reports ...
+    - Submit maintenance data ...
+  New (0):
+    (none)
 ```
 
 Running the bundled sample produces:
@@ -140,7 +161,7 @@ tests/           pytest suite (offline)
 - Spec-section auto-splitting for multi-section PDFs
 - Submittal-item synonym dictionary loaded from a project's submittal register
 - Side-by-side spec/submittal diff view in the web UI
-- Resubmittal tracking that diffs against the prior review in `speccheck.db`
+- Resubmittal diff surfaced in the HTML report and web UI (currently CLI-only)
 
 ## License
 
