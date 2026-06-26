@@ -8,7 +8,25 @@ or ``pypdf`` is present.
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
+
+
+def load_text_bytes(filename: str, data: bytes) -> str:
+    """Return the text of an uploaded file given its name and raw bytes.
+
+    Routes ``.pdf`` through the PDF backend (via a temp file) and decodes
+    everything else as UTF-8. Used by the web upload endpoints.
+    """
+    if filename.lower().endswith(".pdf"):
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
+        try:
+            return _load_pdf(tmp_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    return data.decode("utf-8", errors="ignore")
 
 
 def load_text(path: str | Path) -> str:

@@ -47,7 +47,7 @@ No third-party packages are needed for the core library, CLI, and tests.
 ```bash
 git clone https://github.com/vk86294140-cloud/submittal-verifier
 cd submittal-verifier
-python -m pytest            # 11 tests, runs offline
+python -m pytest            # core suite runs offline, no extra installs
 ```
 
 Optional extras:
@@ -123,14 +123,55 @@ print(report.summary())          # {'missing': 2, 'met': 7, ...}
 open("review.html", "w").write(to_html(report))
 ```
 
-### Web
+### Web app (multi-user)
+
+A browser tool where reviewers upload a spec + submittal, get a saved shareable
+review, and see a dashboard of past decisions. Resubmittals link to the round
+they supersede.
 
 ```bash
-pip install -e ".[web]"
-uvicorn speccheck.web:app --reload
-# open http://127.0.0.1:8000  — paste a spec + submittal, get the matrix
-# POST /api/verify accepts spec/submittal file uploads and returns JSON
+pip install -e ".[web,pdf]"
+uvicorn speccheck.web:app --host 0.0.0.0 --port 8000
+# open http://127.0.0.1:8000
 ```
+
+Endpoints: `/` dashboard + upload, `/reviews/{id}` saved review,
+`/reviews/{id}/report.{html,json}` downloads, `/api/verify` stateless JSON,
+`/healthz` probe.
+
+| Env var | Purpose |
+| --- | --- |
+| `SPECCHECK_PASSWORD` | enable HTTP Basic auth (set this for any non-trusted network) |
+| `SPECCHECK_USER` | auth username (default `admin`) |
+| `SPECCHECK_DB` | SQLite path (default `./speccheck.db`) |
+
+## Deploy (let another laptop use it)
+
+The same app serves three ways — pick by who needs to reach it.
+
+**A — Office LAN.** Run on one machine; coworkers open `http://<your-ip>:8000`.
+```bash
+pip install -e ".[web,pdf]"
+SPECCHECK_PASSWORD=changeme uvicorn speccheck.web:app --host 0.0.0.0 --port 8000
+# find <your-ip> with `ipconfig` (Windows) / `ip addr` (Linux); allow port 8000 in the firewall
+```
+
+**B — Cloud public URL (Render).** Push this repo, then in Render: *New → Blueprint*
+and pick the repo — it reads [`render.yaml`](render.yaml). Set `SPECCHECK_PASSWORD`
+in the dashboard. You get `https://<name>.onrender.com`. (Railway/Fly work the
+same via the `Dockerfile`.)
+
+**C — Docker (any server/VPS).**
+```bash
+docker build -t speccheck .
+docker run -p 8000:8000 -e SPECCHECK_PASSWORD=changeme \
+  -v "$PWD/data:/data" -e SPECCHECK_DB=/data/speccheck.db speccheck
+```
+The `-v` volume keeps the review database across restarts.
+
+> The app stores construction submittals. For anything beyond a trusted LAN,
+> always set `SPECCHECK_PASSWORD` and serve over HTTPS (Render/Fly terminate TLS
+> for you).
 
 ## Project layout
 
@@ -142,10 +183,12 @@ speccheck/
   llm.py         optional Claude enrichment (best-effort, additive)
   report.py      text / JSON / HTML renderers
   store.py       SQLite audit trail of past reviews
+  resubmittal.py diff a submittal against a prior saved review
   cli.py         command-line interface
-  web.py         FastAPI upload UI + JSON API
+  web.py         FastAPI web app: dashboard, upload, auth, JSON API
 samples/         a real-format spec section 09 68 13 and a submittal
-tests/           pytest suite (offline)
+tests/           pytest suite (core offline; web tests skip without FastAPI)
+Dockerfile · render.yaml · Procfile   deploy to a container / Render / PaaS
 ```
 
 ## Scope and limitations
