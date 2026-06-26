@@ -1,0 +1,42 @@
+SECTION 09 68 13 - TILE CARPETING
+
+PART 1 - GENERAL
+
+1.1 SUMMARY
+A. Section includes modular carpet tile and accessories for interior floors.
+
+1.2 SUBMITTALS
+A. Product Data: Submit manufacturer's product data for each type of carpet tile,
+   adhesive, and accessory specified.
+B. Shop Drawings: Submit shop drawings showing tile layout, seam locations, and
+   direction of pile.
+C. Samples: Submit two samples, minimum 12 inch by 12 inch, of each carpet tile
+   in the specified color.
+D. Test Reports: Submit certified test reports from a qualified independent
+   testing agency indicating compliance with specified performance requirements.
+E. Maintenance Data: Submit maintenance data for inclusion in operation and
+   maintenance manuals.
+F. Warranty: Submit manufacturer's standard warranty.
+
+1.3 QUALITY ASSURANCE
+A. Fire-Test-Response Characteristics: Carpet tile shall comply with ASTM E648
+   for critical radiant flux of not less than 0.45 watts per square centimeter.
+B. Smoke Density: Carpet tile shall comply with ASTM E662 with a maximum smoke
+   density of 450.
+C. Electrostatic Propensity: Carpet tile shall comply with AATCC 134 with a
+   maximum static generation of 3.5 kilovolts.
+
+PART 2 - PRODUCTS
+
+2.1 PERFORMANCE REQUIREMENTS
+A. Pile Height: Provide carpet tile with a minimum pile height of 0.27 inch.
+B. Tile Size: Provide carpet tile 24 inch by 24 inch nominal.
+C. Total Weight: Provide carpet tile with a minimum total weight of 70 ounce per
+   square yard.
+D. Tufted Pile Yarn: Provide 100 percent solution-dyed nylon yarn.
+
+PART 3 - EXECUTION
+
+3.1 INSTALLATION
+A. Install carpet tile in accordance with manufacturer's written instructions and
+   CRI 104.

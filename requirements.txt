@@ -1,0 +1,16 @@
+# Core library and CLI have no required third-party dependencies.
+# The features below are optional — install only what you use.
+
+# PDF ingestion (verify .pdf files instead of .txt)
+pdfplumber>=0.11 ; extra == "pdf"
+
+# Web interface: uvicorn speccheck.web:app --reload
+fastapi>=0.110 ; extra == "web"
+uvicorn>=0.29 ; extra == "web"
+python-multipart>=0.0.9 ; extra == "web"
+
+# Claude semantic enrichment (speccheck verify --llm)
+anthropic>=0.40 ; extra == "llm"
+
+# Tests
+pytest>=8.0 ; extra == "dev"

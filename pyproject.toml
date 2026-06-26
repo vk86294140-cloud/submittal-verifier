@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speccheck"
+version = "0.1.0"
+description = "Automated construction submittal verification against project specs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+pdf = ["pdfplumber>=0.11"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9"]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+speccheck = "speccheck.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["speccheck*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
