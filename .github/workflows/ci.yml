@@ -6,7 +6,29 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,pdf,web,llm]"
+      - run: mypy --strict speccheck
+
   test:
+    needs: [lint, typecheck]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,7 +41,7 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]"
       - name: Run tests
-        run: python -m pytest -q
+        run: pytest --cov=speccheck --cov-report=xml --cov-fail-under=90
       - name: Smoke test CLI
         run: |
           python -m speccheck.cli verify \
