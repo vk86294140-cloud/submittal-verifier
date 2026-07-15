@@ -10,6 +10,7 @@ buckets: cleared, recurring, and newly introduced.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from .models import FindingStatus, Report
 from .report import to_dict
@@ -25,15 +26,15 @@ BLOCKING = {
 @dataclass
 class ResubmittalDiff:
     section: str
-    cleared: list[str] = field(default_factory=list)    # fixed since last round
+    cleared: list[str] = field(default_factory=list)  # fixed since last round
     recurring: list[str] = field(default_factory=list)  # still unresolved
-    new: list[str] = field(default_factory=list)        # regressions
+    new: list[str] = field(default_factory=list)  # regressions
 
     @property
     def resolved_all(self) -> bool:
         return not self.recurring and not self.new
 
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "section": self.section,
             "cleared": self.cleared,
@@ -43,14 +44,16 @@ class ResubmittalDiff:
         }
 
 
-def _blocking_labels(findings: list[dict]) -> set[str]:
-    return {f["requirement"] for f in findings if f["status"] in BLOCKING}
+def _blocking_labels(findings: list[dict[str, Any]]) -> set[str]:
+    return {str(f["requirement"]) for f in findings if f["status"] in BLOCKING}
 
 
-def diff(prior_findings: list[dict], current: Report) -> ResubmittalDiff:
+def diff(prior_findings: list[dict[str, Any]], current: Report) -> ResubmittalDiff:
     """Compare a prior review's findings (as stored dicts) with a new report."""
     prior = _blocking_labels(prior_findings)
-    now = _blocking_labels(to_dict(current)["findings"])
+    current_findings = to_dict(current)["findings"]
+    assert isinstance(current_findings, list)
+    now = _blocking_labels(current_findings)
     return ResubmittalDiff(
         section=current.section,
         cleared=sorted(prior - now),
@@ -60,12 +63,9 @@ def diff(prior_findings: list[dict], current: Report) -> ResubmittalDiff:
 
 
 def render(d: ResubmittalDiff) -> str:
-    headline = ("ALL PRIOR ISSUES RESOLVED" if d.resolved_all
-                else "OUTSTANDING ISSUES REMAIN")
+    headline = "ALL PRIOR ISSUES RESOLVED" if d.resolved_all else "OUTSTANDING ISSUES REMAIN"
     lines = [f"Resubmittal diff — Section {d.section or '(unknown)'}: {headline}"]
-    for title, items in (("Cleared", d.cleared),
-                         ("Recurring", d.recurring),
-                         ("New", d.new)):
+    for title, items in (("Cleared", d.cleared), ("Recurring", d.recurring), ("New", d.new)):
         lines.append(f"  {title} ({len(items)}):")
         if items:
             lines.extend(f"    - {label}" for label in items)

@@ -23,12 +23,10 @@ from .models import (
 # or a heading like "Drawings" in the submittal.
 ITEM_SYNONYMS = {
     "shop drawing": ("shop drawing", "shop dwg", "drawings", "shop dwgs"),
-    "product data": ("product data", "data sheet", "datasheet", "cut sheet",
-                     "technical data"),
+    "product data": ("product data", "data sheet", "datasheet", "cut sheet", "technical data"),
     "sample": ("sample", "samples", "physical sample"),
     "test report": ("test report", "test data", "test results", "lab report"),
-    "certificate": ("certificate", "certification", "certificate of compliance",
-                    "coc"),
+    "certificate": ("certificate", "certification", "certificate of compliance", "coc"),
     "warranty": ("warranty", "guarantee"),
     "maintenance data": ("maintenance data", "o&m", "operation and maintenance"),
     "calculation": ("calculation", "calc", "engineering calculation"),
@@ -51,11 +49,8 @@ def parse_submittal(text: str) -> SubmittalDoc:
         value = _normalize_num(m.group("num"))
         if value is None:
             continue
-        keyword = text[max(0, m.start() - 40):m.start()].strip().split()
-        doc.numbers.append(
-            (value, _canon_unit(m.group("unit")),
-             " ".join(keyword[-3:]).lower())
-        )
+        keyword = text[max(0, m.start() - 40) : m.start()].strip().split()
+        doc.numbers.append((value, _canon_unit(m.group("unit")), " ".join(keyword[-3:]).lower()))
 
     return doc
 
@@ -76,36 +71,34 @@ def _check(req: Requirement, sub: SubmittalDoc) -> Finding:
         return _check_item(req, sub)
     if req.kind is RequirementKind.NUMERIC:
         return _check_numeric(req, sub)
-    return Finding(req, FindingStatus.UNVERIFIED,
-                   detail="Narrative requirement — manual review needed.")
+    return Finding(req, FindingStatus.UNVERIFIED, detail="Narrative requirement — manual review needed.")
 
 
 def _check_standard(req: Requirement, sub: SubmittalDoc) -> Finding:
     want = _std_key(req.keyword)
     for cited in sub.standards:
         if _std_key(cited) == want:
-            return Finding(req, FindingStatus.MET,
-                           detail=f"Submittal cites {cited}.", evidence=cited)
+            return Finding(req, FindingStatus.MET, detail=f"Submittal cites {cited}.", evidence=cited)
     # Same standard family (e.g. ASTM E84) but different number is a mismatch
     # worth flagging rather than a silent miss.
     family = want.split()[0] if want else ""
     near = [s for s in sub.standards if s.upper().startswith(family)]
     if near:
         return Finding(
-            req, FindingStatus.STANDARD_MISMATCH,
+            req,
+            FindingStatus.STANDARD_MISMATCH,
             detail=f"Spec requires {req.keyword}; submittal cites {', '.join(near)}.",
-            evidence=", ".join(near))
-    return Finding(req, FindingStatus.MISSING,
-                   detail=f"No reference to {req.keyword} found in submittal.")
+            evidence=", ".join(near),
+        )
+    return Finding(req, FindingStatus.MISSING, detail=f"No reference to {req.keyword} found in submittal.")
 
 
 def _check_item(req: Requirement, sub: SubmittalDoc) -> Finding:
     if req.keyword in sub.provided_items:
-        return Finding(req, FindingStatus.MET,
-                       detail=f"'{req.keyword}' present in submittal.",
-                       evidence=req.keyword)
-    return Finding(req, FindingStatus.MISSING,
-                   detail=f"Required submittal item '{req.keyword}' not found.")
+        return Finding(
+            req, FindingStatus.MET, detail=f"'{req.keyword}' present in submittal.", evidence=req.keyword
+        )
+    return Finding(req, FindingStatus.MISSING, detail=f"Required submittal item '{req.keyword}' not found.")
 
 
 def _check_numeric(req: Requirement, sub: SubmittalDoc) -> Finding:
@@ -113,16 +106,19 @@ def _check_numeric(req: Requirement, sub: SubmittalDoc) -> Finding:
         # No discriminating noun to bind the threshold to a submitted value;
         # report for manual review rather than guess.
         return Finding(
-            req, FindingStatus.UNVERIFIED,
-            detail="Numeric requirement without a clear subject — review manually.")
+            req,
+            FindingStatus.UNVERIFIED,
+            detail="Numeric requirement without a clear subject — review manually.",
+        )
     candidates = [
-        (val, unit, kw) for (val, unit, kw) in sub.numbers
+        (val, unit, kw)
+        for (val, unit, kw) in sub.numbers
         if unit == req.unit and _keyword_overlap(req.keyword, kw)
     ]
     if not candidates:
         return Finding(
-            req, FindingStatus.UNVERIFIED,
-            detail=f"No comparable '{req.keyword}' value found in submittal.")
+            req, FindingStatus.UNVERIFIED, detail=f"No comparable '{req.keyword}' value found in submittal."
+        )
 
     val, unit, kw = candidates[0]
     ok = {
@@ -133,13 +129,15 @@ def _check_numeric(req: Requirement, sub: SubmittalDoc) -> Finding:
 
     evidence = f"{val} {unit} ({kw})"
     if ok:
-        return Finding(req, FindingStatus.MET,
-                       detail=f"Submitted {evidence} satisfies {req.label()}.",
-                       evidence=evidence)
+        return Finding(
+            req, FindingStatus.MET, detail=f"Submitted {evidence} satisfies {req.label()}.", evidence=evidence
+        )
     return Finding(
-        req, FindingStatus.VALUE_DEVIATION,
+        req,
+        FindingStatus.VALUE_DEVIATION,
         detail=f"Submitted {evidence} violates {req.label()}.",
-        evidence=evidence)
+        evidence=evidence,
+    )
 
 
 def _std_key(std: str) -> str:

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import html
 import json
+from typing import Any
 
 from .models import FindingStatus, Report
 
@@ -26,7 +27,7 @@ _STATUS_COLOR = {
 }
 
 
-def to_dict(report: Report) -> dict:
+def to_dict(report: Report) -> dict[str, Any]:
     return {
         "section": report.section,
         "compliant": report.compliant,
@@ -50,8 +51,7 @@ def to_json(report: Report, indent: int = 2) -> str:
 
 def to_text(report: Report) -> str:
     lines = [
-        f"Section {report.section or '(unknown)'} — "
-        f"{'APPROVE' if report.compliant else 'REVISE & RESUBMIT'}",
+        f"Section {report.section or '(unknown)'} — {'APPROVE' if report.compliant else 'REVISE & RESUBMIT'}",
         "summary: " + ", ".join(f"{k}={v}" for k, v in report.summary().items()),
         "-" * 64,
     ]

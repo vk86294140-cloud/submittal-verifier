@@ -38,7 +38,7 @@ def enrich(spec_text: str, model: str = DEFAULT_MODEL) -> list[Requirement]:
     if not api_key:
         return []
     try:
-        import anthropic  # type: ignore
+        import anthropic
     except ImportError:
         return []
 
@@ -47,14 +47,14 @@ def enrich(spec_text: str, model: str = DEFAULT_MODEL) -> list[Requirement]:
         msg = client.messages.create(
             model=model,
             max_tokens=2048,
-            messages=[{
-                "role": "user",
-                "content": _PROMPT.format(spec=spec_text[:12000]),
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": _PROMPT.format(spec=spec_text[:12000]),
+                }
+            ],
         )
-        payload = "".join(
-            block.text for block in msg.content if block.type == "text"
-        )
+        payload = "".join(block.text for block in msg.content if block.type == "text")
         return _parse(payload)
     except Exception:  # best-effort; never break the offline path
         return []
@@ -66,7 +66,7 @@ def _parse(payload: str) -> list[Requirement]:
     if start == -1 or end == -1:
         return []
     try:
-        items = json.loads(payload[start:end + 1])
+        items = json.loads(payload[start : end + 1])
     except json.JSONDecodeError:
         return []
 
@@ -78,9 +78,11 @@ def _parse(payload: str) -> list[Requirement]:
         kind = it.get("kind", "general")
         if kind not in valid:
             kind = "general"
-        out.append(Requirement(
-            kind=RequirementKind(kind),
-            text=str(it.get("text", "")).strip(),
-            keyword=str(it.get("keyword", "")).strip().lower(),
-        ))
+        out.append(
+            Requirement(
+                kind=RequirementKind(kind),
+                text=str(it.get("text", "")).strip(),
+                keyword=str(it.get("keyword", "")).strip().lower(),
+            )
+        )
     return out

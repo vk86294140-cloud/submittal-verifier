@@ -43,20 +43,54 @@ SENTENCE_SPLIT = re.compile(r"(?<=[.:;])\s+(?=[A-Z0-9])")
 # submitted value. Units and boilerplate verbs/quantifiers live here so that
 # keyword matching turns on real nouns ("pile height") not filler ("provide").
 STOPWORDS = {
-    "inch", "inches", "in", "ft", "feet", "foot", "psf", "psi", "lb", "lbs",
-    "percent", "gauge", "ga", "mm", "cm", "watts", "ounce", "kilovolts",
-    "provide", "submit", "shall", "must", "with", "each", "type", "the", "and",
-    "for", "not", "less", "than", "more", "minimum", "maximum", "nominal",
-    "two", "all", "from", "per", "square", "centimeter", "yard",
+    "inch",
+    "inches",
+    "in",
+    "ft",
+    "feet",
+    "foot",
+    "psf",
+    "psi",
+    "lb",
+    "lbs",
+    "percent",
+    "gauge",
+    "ga",
+    "mm",
+    "cm",
+    "watts",
+    "ounce",
+    "kilovolts",
+    "provide",
+    "submit",
+    "shall",
+    "must",
+    "with",
+    "each",
+    "type",
+    "the",
+    "and",
+    "for",
+    "not",
+    "less",
+    "than",
+    "more",
+    "minimum",
+    "maximum",
+    "nominal",
+    "two",
+    "all",
+    "from",
+    "per",
+    "square",
+    "centimeter",
+    "yard",
 }
 
 
 def content_words(text: str) -> set[str]:
     """Discriminating lowercase tokens from a phrase (drops units/filler)."""
-    return {
-        w for w in re.findall(r"[a-z]+", text.lower())
-        if len(w) > 2 and w not in STOPWORDS
-    }
+    return {w for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 2 and w not in STOPWORDS}
 
 
 def _normalize_num(token: str) -> float | None:
@@ -93,11 +127,12 @@ def extract_requirements(text: str) -> list[Requirement]:
     """Pull checkable requirements out of raw spec text."""
     section = find_section(text)
     reqs: list[Requirement] = []
-    seen: set[tuple] = set()
+    seen: set[tuple[object, ...]] = set()
 
     def add(req: Requirement) -> None:
         # For numerics, dedupe on the value itself so a dimension pair like
         # "24 inch by 24 inch" yields one requirement, not two.
+        key: tuple[object, ...]
         if req.kind is RequirementKind.NUMERIC:
             key = (req.kind, req.quantity, req.unit, req.bound, req.text[:60])
         else:
@@ -121,20 +156,23 @@ def extract_requirements(text: str) -> list[Requirement]:
         if SUBMIT_RE.search(clause):
             item = _submittal_item_label(clause)
             if item:
-                add(Requirement(RequirementKind.SUBMITTAL_ITEM, clause,
-                                keyword=item))
+                add(Requirement(RequirementKind.SUBMITTAL_ITEM, clause, keyword=item))
 
         # 3) Numeric thresholds (skip if the only numbers were section codes).
         for m in NUM_RE.finditer(clause):
             value = _normalize_num(m.group("num"))
             if value is None:
                 continue
-            add(Requirement(
-                RequirementKind.NUMERIC, clause,
-                keyword=_numeric_keyword(clause, m.start()),
-                quantity=value, unit=_canon_unit(m.group("unit")),
-                bound=_detect_bound(clause),
-            ))
+            add(
+                Requirement(
+                    RequirementKind.NUMERIC,
+                    clause,
+                    keyword=_numeric_keyword(clause, m.start()),
+                    quantity=value,
+                    unit=_canon_unit(m.group("unit")),
+                    bound=_detect_bound(clause),
+                )
+            )
 
         # 4) Residual "shall/must" clauses we could not structure.
         if re.search(r"\b(shall|must|required to)\b", clause, re.IGNORECASE):
@@ -159,9 +197,19 @@ def _split_sentences(text: str) -> list[str]:
 def _submittal_item_label(clause: str) -> str:
     """Turn 'Submit product data for adhesive.' -> 'product data'."""
     low = clause.lower()
-    for kind in ("shop drawing", "product data", "sample", "test report",
-                 "certificate", "warranty", "maintenance data",
-                 "leed", "calculation", "mock-up", "mockup"):
+    for kind in (
+        "shop drawing",
+        "product data",
+        "sample",
+        "test report",
+        "certificate",
+        "warranty",
+        "maintenance data",
+        "leed",
+        "calculation",
+        "mock-up",
+        "mockup",
+    ):
         if kind in low:
             return kind
     # Fallback: text after the verb "submit" (word-bounded so a section
@@ -182,14 +230,17 @@ def _numeric_keyword(clause: str, pos: int) -> str:
     """
     before = clause[:pos].strip().rstrip(":-").split()
     window = " ".join(before[-4:])
-    words = [w for w in re.findall(r"[a-z]+", window.lower())
-             if len(w) > 2 and w not in STOPWORDS]
+    words = [w for w in re.findall(r"[a-z]+", window.lower()) if len(w) > 2 and w not in STOPWORDS]
     return " ".join(words[-3:])
 
 
 def _canon_unit(unit: str) -> str:
     u = unit.lower().strip(". ")
     return {
-        '"': "inch", "in": "inch", "inches": "inch",
-        "ft": "feet", "%": "percent", "ga": "gauge",
+        '"': "inch",
+        "in": "inch",
+        "inches": "inch",
+        "ft": "feet",
+        "%": "percent",
+        "ga": "gauge",
     }.get(u, u)

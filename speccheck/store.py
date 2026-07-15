@@ -13,6 +13,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from .models import Report
 from .report import to_dict
@@ -95,20 +96,20 @@ def save_review(
         )
     review_id = cur.lastrowid
     conn.close()
+    assert review_id is not None  # guaranteed: we just inserted a row
     return review_id
 
 
-def list_reviews(db_path: str | Path = DEFAULT_DB) -> list[dict]:
+def list_reviews(db_path: str | Path = DEFAULT_DB) -> list[dict[str, Any]]:
     conn = connect(db_path)
     rows = conn.execute(
-        "SELECT id, project, section, compliant, summary, prior_id, created_at"
-        " FROM reviews ORDER BY id DESC"
+        "SELECT id, project, section, compliant, summary, prior_id, created_at FROM reviews ORDER BY id DESC"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
-def get_review(review_id: int, db_path: str | Path = DEFAULT_DB) -> dict | None:
+def get_review(review_id: int, db_path: str | Path = DEFAULT_DB) -> dict[str, Any] | None:
     """Return a saved review (with findings and documents) or None."""
     conn = connect(db_path)
     row = conn.execute(

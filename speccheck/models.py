@@ -11,24 +11,23 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class RequirementKind(str, Enum):
     """What sort of obligation a requirement expresses."""
 
-    SUBMITTAL_ITEM = "submittal_item"   # "Submit product data for ..."
-    STANDARD = "standard"               # "Comply with ASTM E84 ..."
-    NUMERIC = "numeric"                 # "minimum 0.27 inch pile height"
-    GENERAL = "general"                 # any other "shall/must" clause
+    SUBMITTAL_ITEM = "submittal_item"  # "Submit product data for ..."
+    STANDARD = "standard"  # "Comply with ASTM E84 ..."
+    NUMERIC = "numeric"  # "minimum 0.27 inch pile height"
+    GENERAL = "general"  # any other "shall/must" clause
 
 
 class FindingStatus(str, Enum):
     MET = "met"
-    MISSING = "missing"                 # required item absent from submittal
+    MISSING = "missing"  # required item absent from submittal
     STANDARD_MISMATCH = "standard_mismatch"
     VALUE_DEVIATION = "value_deviation"
-    UNVERIFIED = "unverified"           # parsed, but not auto-checkable
+    UNVERIFIED = "unverified"  # parsed, but not auto-checkable
 
 
 # Severity ordering used for sorting/reporting. Higher = more urgent.
@@ -46,13 +45,13 @@ class Requirement:
     """A single obligation extracted from the spec."""
 
     kind: RequirementKind
-    text: str                       # verbatim clause from the spec
-    section: str = ""               # e.g. "09 68 13"
-    keyword: str = ""               # canonical token, e.g. "ASTM E84"
+    text: str  # verbatim clause from the spec
+    section: str = ""  # e.g. "09 68 13"
+    keyword: str = ""  # canonical token, e.g. "ASTM E84"
     # For NUMERIC requirements:
-    quantity: Optional[float] = None
+    quantity: float | None = None
     unit: str = ""
-    bound: str = ""                 # "min" | "max" | "exact"
+    bound: str = ""  # "min" | "max" | "exact"
 
     def label(self) -> str:
         if self.kind is RequirementKind.STANDARD:
@@ -68,7 +67,7 @@ class SubmittalDoc:
     """Parsed contents of a contractor submittal."""
 
     raw_text: str
-    standards: set[str] = field(default_factory=set)         # cited standards
+    standards: set[str] = field(default_factory=set)  # cited standards
     provided_items: list[str] = field(default_factory=list)  # listed deliverables
     numbers: list[tuple[float, str, str]] = field(default_factory=list)
     # numbers: (value, unit, surrounding_keyword)
@@ -78,8 +77,8 @@ class SubmittalDoc:
 class Finding:
     requirement: Requirement
     status: FindingStatus
-    detail: str = ""                # human-readable explanation
-    evidence: str = ""              # snippet from submittal supporting the call
+    detail: str = ""  # human-readable explanation
+    evidence: str = ""  # snippet from submittal supporting the call
 
     @property
     def severity(self) -> int:
@@ -97,8 +96,7 @@ class Report:
     @property
     def compliant(self) -> bool:
         """True when nothing blocks approval (no missing items / mismatches)."""
-        blocking = (FindingStatus.MISSING, FindingStatus.STANDARD_MISMATCH,
-                    FindingStatus.VALUE_DEVIATION)
+        blocking = (FindingStatus.MISSING, FindingStatus.STANDARD_MISMATCH, FindingStatus.VALUE_DEVIATION)
         return not any(f.status in blocking for f in self.findings)
 
     def summary(self) -> dict[str, int]:

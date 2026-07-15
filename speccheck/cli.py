@@ -1,7 +1,7 @@
 """Command-line interface.
 
-    speccheck verify SPEC SUBMITTAL [--format text|json|html] [--llm] [--save]
-    speccheck history
+speccheck verify SPEC SUBMITTAL [--format text|json|html] [--llm] [--save]
+speccheck history
 """
 
 from __future__ import annotations
@@ -26,8 +26,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     if args.llm:
         added = enrich(spec_text)
         requirements.extend(added)
-        print(f"# llm enrichment added {len(added)} requirement(s)",
-              file=sys.stderr)
+        print(f"# llm enrichment added {len(added)} requirement(s)", file=sys.stderr)
     if not requirements:
         print("warning: no requirements extracted from spec", file=sys.stderr)
 
@@ -37,8 +36,7 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     if args.against is not None:
         prior = get_review(args.against)
         if prior is None:
-            print(f"error: no saved review #{args.against} "
-                  f"(see 'speccheck history')", file=sys.stderr)
+            print(f"error: no saved review #{args.against} (see 'speccheck history')", file=sys.stderr)
             return 1
         d = diff_reviews(prior["findings"], report)
         print(render_diff(d), file=sys.stderr)
@@ -72,8 +70,7 @@ def _cmd_history(_: argparse.Namespace) -> int:
         return 0
     for r in rows:
         verdict = "APPROVE" if r["compliant"] else "REVISE"
-        print(f"#{r['id']:>3}  {r['created_at']}  {r['section']:<10}  "
-              f"{verdict}  {r['summary']}")
+        print(f"#{r['id']:>3}  {r['created_at']}  {r['section']:<10}  {verdict}  {r['summary']}")
     return 0
 
 
@@ -82,22 +79,21 @@ def build_parser() -> argparse.ArgumentParser:
         prog="speccheck",
         description="Verify a construction submittal against the project spec.",
     )
-    p.add_argument("--version", action="version",
-                   version=f"speccheck {__version__}")
+    p.add_argument("--version", action="version", version=f"speccheck {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
     v = sub.add_parser("verify", help="verify a submittal against a spec")
     v.add_argument("spec", help="spec section file (.txt or .pdf)")
     v.add_argument("submittal", help="submittal file (.txt or .pdf)")
-    v.add_argument("--format", choices=("text", "json", "html"),
-                   default="text")
+    v.add_argument("--format", choices=("text", "json", "html"), default="text")
     v.add_argument("--output", "-o", help="write report to file instead of stdout")
-    v.add_argument("--llm", action="store_true",
-                   help="add Claude semantic enrichment (needs ANTHROPIC_API_KEY)")
-    v.add_argument("--save", action="store_true",
-                   help="persist the review to speccheck.db")
-    v.add_argument("--against", type=int, metavar="REVIEW_ID",
-                   help="diff this submittal against a prior saved review")
+    v.add_argument(
+        "--llm", action="store_true", help="add Claude semantic enrichment (needs ANTHROPIC_API_KEY)"
+    )
+    v.add_argument("--save", action="store_true", help="persist the review to speccheck.db")
+    v.add_argument(
+        "--against", type=int, metavar="REVIEW_ID", help="diff this submittal against a prior saved review"
+    )
     v.set_defaults(func=_cmd_verify)
 
     h = sub.add_parser("history", help="list saved reviews")
@@ -107,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    return int(args.func(args))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from types import ModuleType
 
 
 def load_text_bytes(filename: str, data: bytes) -> str:
@@ -40,8 +41,9 @@ def load_text(path: str | Path) -> str:
 
 
 def _load_pdf(path: Path) -> str:
+    pdfplumber: ModuleType | None
     try:
-        import pdfplumber  # type: ignore
+        import pdfplumber
     except ImportError:
         pdfplumber = None
 
@@ -53,8 +55,7 @@ def _load_pdf(path: Path) -> str:
         from pypdf import PdfReader  # type: ignore
     except ImportError as exc:  # pragma: no cover - depends on environment
         raise RuntimeError(
-            "Reading PDF requires 'pdfplumber' or 'pypdf'. "
-            "Install with: pip install pdfplumber"
+            "Reading PDF requires 'pdfplumber' or 'pypdf'. Install with: pip install pdfplumber"
         ) from exc
 
     reader = PdfReader(str(path))

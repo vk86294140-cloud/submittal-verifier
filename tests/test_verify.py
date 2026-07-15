@@ -23,16 +23,14 @@ def test_missing_item():
 def test_value_deviation():
     req = extract_requirements("Minimum pile height of 0.27 inch.")
     sub = parse_submittal("Pile height: 0.20 inch.")
-    numeric = [f for f in verify(req, sub).findings
-               if f.requirement.kind is RequirementKind.NUMERIC]
+    numeric = [f for f in verify(req, sub).findings if f.requirement.kind is RequirementKind.NUMERIC]
     assert numeric and numeric[0].status is FindingStatus.VALUE_DEVIATION
 
 
 def test_value_met():
     req = extract_requirements("Minimum pile height of 0.27 inch.")
     sub = parse_submittal("Pile height: 0.30 inch.")
-    numeric = [f for f in verify(req, sub).findings
-               if f.requirement.kind is RequirementKind.NUMERIC]
+    numeric = [f for f in verify(req, sub).findings if f.requirement.kind is RequirementKind.NUMERIC]
     assert numeric and numeric[0].status is FindingStatus.MET
 
 

@@ -23,6 +23,8 @@ import os
 import secrets
 import time
 from collections import defaultdict, deque
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 try:
     from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, status
@@ -34,6 +36,7 @@ except ImportError as exc:  # pragma: no cover - optional dependency
     ) from exc
 
 from . import extract_requirements, parse_submittal, verify
+from .models import Report
 from .parse_pdf import load_text_bytes
 from .report import to_dict, to_html, to_json
 from .resubmittal import diff as diff_reviews
@@ -51,11 +54,13 @@ _security = HTTPBasic(auto_error=False)
 # Per-client request timestamps for the in-memory rate limiter. This is
 # per-process: a single instance is protected; running multiple replicas
 # behind a load balancer needs a shared store (Redis) instead.
-_request_log: dict[str, deque] = defaultdict(deque)
+_request_log: dict[str, deque[float]] = defaultdict(deque)
 
 
 @app.middleware("http")
-async def security_middleware(request: Request, call_next):
+async def security_middleware(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     """Throttle abusive clients and attach hardening headers to every response."""
     if RATE_LIMIT_PER_MIN > 0 and request.url.path != "/healthz":
         client_ip = request.client.host if request.client else "unknown"
@@ -86,13 +91,12 @@ async def _read_upload(file: UploadFile) -> tuple[str, bytes]:
     """
     name = file.filename or ""
     if not name.lower().endswith(ALLOWED_EXT):
-        raise HTTPException(status_code=400,
-                            detail="Only .txt or .pdf files are accepted")
+        raise HTTPException(status_code=400, detail="Only .txt or .pdf files are accepted")
     data = await file.read()
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(
-            status_code=413,
-            detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+            status_code=413, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)"
+        )
     return name, data
 
 
@@ -102,8 +106,11 @@ def require_auth(creds: HTTPBasicCredentials | None = Depends(_security)) -> Non
     if not password:
         return
     user = os.environ.get("SPECCHECK_USER", "admin")
-    ok = creds is not None and secrets.compare_digest(creds.username, user) \
+    ok = (
+        creds is not None
+        and secrets.compare_digest(creds.username, user)
         and secrets.compare_digest(creds.password, password)
+    )
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -134,21 +141,23 @@ _STYLE = """
 
 
 def _page(title: str, body: str) -> str:
-    return (f"<!doctype html><html lang=en><head><meta charset=utf-8>"
-            f"<meta name=viewport content='width=device-width,initial-scale=1'>"
-            f"<title>{html.escape(title)}</title><style>{_STYLE}</style></head>"
-            f"<body><nav><a href='/'>&larr; speccheck dashboard</a></nav>{body}</body></html>")
+    return (
+        f"<!doctype html><html lang=en><head><meta charset=utf-8>"
+        f"<meta name=viewport content='width=device-width,initial-scale=1'>"
+        f"<title>{html.escape(title)}</title><style>{_STYLE}</style></head>"
+        f"<body><nav><a href='/'>&larr; speccheck dashboard</a></nav>{body}</body></html>"
+    )
 
 
 def _verdict_pill(compliant: bool) -> str:
-    return ('<span class="pill ok">APPROVE</span>' if compliant
-            else '<span class="pill bad">REVISE</span>')
+    return '<span class="pill ok">APPROVE</span>' if compliant else '<span class="pill bad">REVISE</span>'
 
 
 # ── routes ────────────────────────────────────────────────────────────────
 
+
 @app.get("/healthz")
-def healthz() -> dict:
+def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
@@ -165,9 +174,11 @@ def dashboard(_: None = Depends(require_auth)) -> str:
             f"<td>{('resubmittal of #' + str(r['prior_id'])) if r['prior_id'] else ''}</td></tr>"
             for r in rows
         )
-        table = ("<table><thead><tr><th>ID</th><th>Project</th><th>Section</th>"
-                 "<th>Verdict</th><th>Reviewed</th><th>Note</th></tr></thead>"
-                 f"<tbody>{items}</tbody></table>")
+        table = (
+            "<table><thead><tr><th>ID</th><th>Project</th><th>Section</th>"
+            "<th>Verdict</th><th>Reviewed</th><th>Note</th></tr></thead>"
+            f"<tbody>{items}</tbody></table>"
+        )
     else:
         table = "<p class='muted'>No reviews yet. Upload a spec and submittal below.</p>"
 
@@ -185,9 +196,10 @@ def dashboard(_: None = Depends(require_auth)) -> str:
       <button type="submit">Verify &amp; save</button>
     </form></div>"""
 
-    return _page("speccheck dashboard",
-                 f"<h1>Submittal verification</h1>{form}<h2 style='font-size:1.1rem'>"
-                 f"Reviews</h2>{table}")
+    return _page(
+        "speccheck dashboard",
+        f"<h1>Submittal verification</h1>{form}<h2 style='font-size:1.1rem'>Reviews</h2>{table}",
+    )
 
 
 @app.post("/reviews")
@@ -206,11 +218,14 @@ async def create_review(
 
     prior = int(prior_id) if prior_id.strip().isdigit() else None
     review_id = save_review(
-        report, DB_PATH, project=project.strip(),
-        spec_text=spec_text, submittal_text=sub_text, prior_id=prior,
+        report,
+        DB_PATH,
+        project=project.strip(),
+        spec_text=spec_text,
+        submittal_text=sub_text,
+        prior_id=prior,
     )
-    return RedirectResponse(f"/reviews/{review_id}",
-                            status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(f"/reviews/{review_id}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/reviews/{review_id}", response_class=HTMLResponse)
@@ -219,20 +234,24 @@ def view_review(review_id: int, _: None = Depends(require_auth)) -> str:
     if rec is None:
         raise HTTPException(status_code=404, detail="review not found")
 
-    header = (f"<h1>Review #{rec['id']} {_verdict_pill(bool(rec['compliant']))}</h1>"
-              f"<p class='muted'>{html.escape(rec['project'] or 'Untitled project')} · "
-              f"Section {html.escape(rec['section'] or 'N/A')} · {html.escape(rec['created_at'])}</p>"
-              f"<p><a href='/reviews/{rec['id']}/report.html'>Download HTML</a> · "
-              f"<a href='/reviews/{rec['id']}/report.json'>Download JSON</a></p>")
+    header = (
+        f"<h1>Review #{rec['id']} {_verdict_pill(bool(rec['compliant']))}</h1>"
+        f"<p class='muted'>{html.escape(rec['project'] or 'Untitled project')} · "
+        f"Section {html.escape(rec['section'] or 'N/A')} · {html.escape(rec['created_at'])}</p>"
+        f"<p><a href='/reviews/{rec['id']}/report.html'>Download HTML</a> · "
+        f"<a href='/reviews/{rec['id']}/report.json'>Download JSON</a></p>"
+    )
 
     diff_html = ""
     if rec["prior_id"]:
         prior = get_review(int(rec["prior_id"]), DB_PATH)
         if prior:
             d = diff_reviews(prior["findings"], _report_from(rec))
-            diff_html = (f"<div class='card'><h2 style='margin-top:0;font-size:1.1rem'>"
-                         f"Resubmittal vs review #{rec['prior_id']}</h2>"
-                         f"<pre>{html.escape(render_diff(d))}</pre></div>")
+            diff_html = (
+                f"<div class='card'><h2 style='margin-top:0;font-size:1.1rem'>"
+                f"Resubmittal vs review #{rec['prior_id']}</h2>"
+                f"<pre>{html.escape(render_diff(d))}</pre></div>"
+            )
 
     rows = "".join(
         f"<tr><td>{_finding_pill(f['status'])}</td>"
@@ -240,8 +259,10 @@ def view_review(review_id: int, _: None = Depends(require_auth)) -> str:
         f"<td class='muted'>{html.escape(f['detail'])}</td></tr>"
         for f in rec["findings"]
     )
-    matrix = ("<table><thead><tr><th>Status</th><th>Requirement</th><th>Detail</th>"
-              f"</tr></thead><tbody>{rows}</tbody></table>")
+    matrix = (
+        "<table><thead><tr><th>Status</th><th>Requirement</th><th>Detail</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table>"
+    )
     return _page(f"Review #{rec['id']}", header + diff_html + matrix)
 
 
@@ -262,8 +283,9 @@ def download_json(review_id: int, _: None = Depends(require_auth)) -> Response:
 
 
 @app.post("/api/verify")
-async def verify_api(spec: UploadFile, submittal: UploadFile,
-                     _: None = Depends(require_auth)) -> JSONResponse:
+async def verify_api(
+    spec: UploadFile, submittal: UploadFile, _: None = Depends(require_auth)
+) -> JSONResponse:
     """Stateless JSON endpoint for scripting/integrations."""
     spec_name, spec_data = await _read_upload(spec)
     sub_name, sub_data = await _read_upload(submittal)
@@ -275,14 +297,19 @@ async def verify_api(spec: UploadFile, submittal: UploadFile,
 
 # ── helpers that rebuild a Report from a stored record ─────────────────────
 
-def _report_from(rec: dict):
+
+def _report_from(rec: dict[str, Any]) -> Report:
     """Re-verify from stored documents so renderers get a live Report object."""
-    return verify(extract_requirements(rec["spec_text"]),
-                  parse_submittal(rec["submittal_text"]))
+    return verify(extract_requirements(rec["spec_text"]), parse_submittal(rec["submittal_text"]))
 
 
-_PILL_CLASS = {"met": "ok", "missing": "bad", "standard_mismatch": "bad",
-               "value_deviation": "bad", "unverified": "muted"}
+_PILL_CLASS = {
+    "met": "ok",
+    "missing": "bad",
+    "standard_mismatch": "bad",
+    "value_deviation": "bad",
+    "unverified": "muted",
+}
 
 
 def _finding_pill(status_value: str) -> str:
